@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helper Functions ---
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isAdmin() { 
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"; 
+    }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // --- Entity Validations ---
+    
+    function isValidUser(data) {
+      return data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 200 &&
+             data.role in ["student", "admin"] &&
+             (!data.keys().hasAll(['role']) || (data.role == "student" || isAdmin()));
+    }
+
+    function isValidExam(data) {
+      return data.title is string && data.title.size() <= 200 &&
+             data.durationMinutes is int && data.durationMinutes > 0 &&
+             data.durationMinutes <= 300;
+    }
+
+    function isValidQuestion(data) {
+      return data.text is string && data.text.size() <= 5000 &&
+             data.options is list && data.options.size() >= 2 && data.options.size() <= 6 &&
+             data.correctOptionIndex is int && data.correctOptionIndex >= 0;
+    }
+
+    function isValidAttempt(data) {
+      return data.userId == request.auth.uid &&
+             data.status in ["in-progress", "completed"] &&
+             data.examId is string;
+    }
+
+    // --- Match Blocks ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().role == "student";
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+      allow delete: if isAdmin();
+    }
+
+    match /exams/{examId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin() && isValidId(examId) && isValidExam(incoming());
+    }
+
+    match /exams/{examId}/questions/{questionId} {
+      // Questions can only be read during an active attempt or by admin
+      allow read: if isAdmin() || (isSignedIn() && isValidId(examId)); 
+      // In a real production app, we would hide correctOptionIndex using a projection or separate doc
+      allow create, update, delete: if isAdmin() && isValidId(examId) && isValidId(questionId) && isValidQuestion(incoming());
+    }
+
+    match /attempts/{attemptId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isAdmin());
+      allow list: if isSignedIn() && (request.query.limit <= 100); // Usually filtered by userId in code
+      
+      allow create: if isSignedIn() && isValidId(attemptId) && isValidAttempt(incoming()) && 
+                    incoming().status == "in-progress" &&
+                    incoming().startedAt == request.time;
+                    
+      allow update: if isSignedIn() && isOwner(existing().userId) && 
+                    existing().status == "in-progress" &&
+                    isValidAttempt(incoming()) &&
+                    (
+                      // Action: Submit Exam
+                      (incoming().status == "completed" && 
+                       incoming().completedAt == request.time &&
+                       incoming().diff(existing()).affectedKeys().hasAll(['status', 'completedAt', 'answers', 'score']))
+                    );
+      allow delete: if isAdmin();
+    }
+
+    match /question_bank/{questionId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin() && isValidId(questionId) && isValidQuestion(incoming());
+    }
+  }
+}

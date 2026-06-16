@@ -1,0 +1,128 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user profile information for students and staff.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "Candidate": {
+      "title": "Candidate Registration",
+      "description": "Records candidates enrolled for exams with their exam numbers.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "examNumber": { "type": "string" },
+        "fullName": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "suspended"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["examNumber", "fullName"]
+    },
+    "Exam": {
+      "title": "Exam Definition",
+      "description": "Defines an exam, its duration, and total marks.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "subject": { "type": "string" },
+        "durationMinutes": { "type": "integer" },
+        "totalQuestions": { "type": "integer" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "durationMinutes"]
+    },
+    "Question": {
+      "title": "Examination Question",
+      "description": "A single multiple-choice question.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "examId": { "type": "string" },
+        "text": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "correctOptionIndex": { "type": "integer" },
+        "explanation": { "type": "string" }
+      },
+      "required": ["examId", "text", "options", "correctOptionIndex"]
+    },
+    "Attempt": {
+      "title": "Exam Attempt",
+      "description": "Record of a student's attempt at an exam.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "examId": { "type": "string" },
+        "score": { "type": "integer" },
+        "totalPossible": { "type": "integer" },
+        "answers": {
+          "type": "object",
+          "description": "Map of questionId to selectedOptionIndex"
+        },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["in-progress", "completed"] }
+      },
+      "required": ["userId", "examId", "status"]
+    },
+    "QuestionBank": {
+      "title": "Central Question Bank",
+      "description": "A repository of questions that can be reused across exams.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string" },
+        "options": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "correctOptionIndex": { "type": "integer" },
+        "explanation": { "type": "string" },
+        "subject": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "options", "correctOptionIndex"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/exams/{examId}": {
+      "schema": "Exam",
+      "description": "Exam metadata"
+    },
+    "/exams/{examId}/questions/{questionId}": {
+      "schema": "Question",
+      "description": "Questions for a specific exam"
+    },
+    "/attempts/{attemptId}": {
+      "schema": "Attempt",
+      "description": "Student exam attempts"
+    },
+    "/question_bank/{questionId}": {
+      "schema": "QuestionBank",
+      "description": "Central repository of questions"
+    }
+  }
+}
