@@ -9,7 +9,7 @@ import { Button } from '@/lib/ui/button';
 import { ScrollArea } from '@/lib/ui/scroll-area';
 import { Separator } from '@/lib/ui/separator';
 import { Badge } from '@/lib/ui/badge';
-import { toast } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -78,8 +78,7 @@ export default function ExamPlayer() {
   const answersKey = user ? `exam_answers_${user.uid}_${examId}` : null;
 
   // Initialize GenAI
-  const genAI = new GoogleGenAI((import.meta as any).env.VITE_GEMINI_API_KEY || "");
-  const aiModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+  const genAI = new GoogleGenAI({ apiKey: (import.meta as any).env.VITE_GEMINI_API_KEY || "" });
 
   const handleSubmit = useCallback(async () => {
     if (!exam || isSubmitting || isCompleted) return;
@@ -98,9 +97,11 @@ export default function ExamPlayer() {
             Student Answer: ${answers[q.id] || ''}
             Return ONLY a JSON object: {"score": <number 0-1>, "feedback": "<short feedback>"}`;
             
-            const result = await aiModel.generateContent(prompt);
-            const response = await result.response;
-            const data = JSON.parse(response.text());
+            const response = await genAI.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+            });
+            const data = JSON.parse(response.text || '{}');
             aiFeedbacks[q.id] = data;
             finalScore += (data.score || 0);
           } catch (e) {
